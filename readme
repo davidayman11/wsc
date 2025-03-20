@@ -1,0 +1,47 @@
+Here are the full commands to install all the required Python libraries for both Windows and macOS.
+
+⸻
+
+For Windows
+
+🖥️ Run this in Command Prompt (cmd):
+
+pip install pandas pyautogui openpyxl
+
+
+⸻
+
+For macOS
+
+🍏 Run this in Terminal:
+
+pip install pandas pyautogui openpyxl
+
+
+⸻
+
+📌 Explanation (What Each Library Does)
+
+Import	Install Command	Purpose
+import pandas as pd	pip install pandas	Used to read and process Excel files.
+import pyautogui	pip install pyautogui	Simulates pressing “Enter” to send messages.
+import openpyxl	pip install openpyxl	Required for reading/writing Excel .xlsx files.
+import subprocess	(Built-in, no need to install)	Used to open Chrome and WhatsApp Web.
+import time	(Built-in, no need to install)	Adds delays to ensure messages are sent correctly.
+import urllib.parse	(Built-in, no need to install)	Encodes messages for URLs.
+
+
+
+⸻
+
+✅ Important Notes
+	1.	No need to install subprocess, time, or urllib—they come with Python.
+	2.	Make sure Python is installed before running these commands.
+	•	Check with: python --version
+	3.	If you face permission issues, try:
+
+run__ pip install --user pandas pyautogui openpyxl
+
+
+
+Now you’re ready to run your WhatsApp auto sender script! 🚀
