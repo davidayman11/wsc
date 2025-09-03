@@ -2,75 +2,69 @@ import pandas as pd
 import subprocess
 import time
 import urllib.parse
-import os
-import re
+import random
+from datetime import datetime
 import pyautogui
 
-# Define the path to Google Chrome (Update this path if needed)
-chrome_path = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
+# Configurable safety limits
+MAX_MESSAGES_PER_HOUR = 50
+BATCH_SIZE = 30
+COOLDOWN_MINUTES = 12
 
-# Read data from Excel
-file_path = "C:\\Users\\YourUsername\\Desktop\\script.xlsx"  # Update with your actual file path
-sheet_name = "Data"  # Ensure this matches your sheet name
-phone_column = "Phone"  # Ensure this matches your Excel column
-message_column = "Message"  # Ensure this matches your Excel column
+chrome_path = 'C:/Program Files/Google/Chrome/Application/chrome.exe'  # Adjust path if different
 
-# Check if file exists
-if not os.path.exists(file_path):
-    print(f"❌ Error: File not found at {file_path}")
-    exit()
+# Load Excel file
+file_path = 'C:/Users/YourUsername/Desktop/whatsapp_sender/tshirt.xlsx'  # Update your path
+sheet_name = 'Sheet1'
+phone_col = 'Phone'
+msg_col = 'Message'
 
-# Load the Excel file
 df = pd.read_excel(file_path, sheet_name=sheet_name)
+print("Columns in Excel:", df.columns)
 
-# Debug: Print column names
-print("📄 Columns in the Excel file:", df.columns)
+sent_count = 0
 
-# Delay between messages
-delay = 10  # Increased delay for safety
+# Create or overwrite log file
+log_file_path = 'failed_log.txt'
+log_file = open(log_file_path, 'w')
 
-# Iterate over phone numbers and send messages
 for index, row in df.iterrows():
-    phone_number = str(row[phone_column]).strip()
-    message = str(row[message_column]).strip()
+    if sent_count >= MAX_MESSAGES_PER_HOUR:
+        print(f"Reached hourly limit of {MAX_MESSAGES_PER_HOUR} messages. Stopping...")
+        break
 
-    # Ensure valid phone number format
-    phone_number = phone_number.replace(" ", "").replace("-", "")
-    if not phone_number.startswith("+20"):
-        phone_number = "+20" + phone_number  # Ensure it starts with '+20'
+    phone = str(row[phone_col]).strip().replace(' ', '').replace('-', '')
+    if not phone.startswith('+20'):
+        phone = '+20' + phone
 
-    # Validate number format
-    if not re.match(r"^\+20\d{9,10}$", phone_number):
-        print(f"⚠️ Skipping invalid phone number: {phone_number}")
-        continue
-
-    # URL encode the message
-    encoded_message = urllib.parse.quote(message)
-
-    # Generate WhatsApp Web URL
-    url = f"https://wa.me/{phone_number}?text={encoded_message}"
+    message = str(row[msg_col]).strip()
+    encoded_msg = urllib.parse.quote(message)
+    url = f"https://wa.me/{phone}?text={encoded_msg}"
 
     try:
-        print(f"📨 Sending message to {phone_number}...")
+        subprocess.Popen([chrome_path, url])
+        time.sleep(random.uniform(12, 20))  # Let the page load
 
-        # Open WhatsApp Web
-        subprocess.Popen([chrome_path, url], shell=True)
+        # Simulate pressing 'Enter' to send message
+        pyautogui.press('enter')
 
-        # Allow time for page to load
-        time.sleep(15)
-
-        # Simulate pressing "Enter" to send the message
-        pyautogui.press("enter")
-
-        # Wait a few seconds before closing the tab
-        time.sleep(5)
-
-        # Simulate pressing "Ctrl + W" to close the tab
-        pyautogui.hotkey("ctrl", "w")
-
-        print(f"✅ Message sent to {phone_number}")
+        print(f"[✓] Sent to {phone} at {datetime.now().strftime('%H:%M:%S')}")
+        sent_count += 1
     except Exception as e:
-        print(f"❌ Failed to send message to {phone_number}. Error: {str(e)}")
+        error_message = f"[✗] Failed to send to {phone}: {e}"
+        print(error_message)
+        log_file.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - {error_message}\n")
 
-    # Wait before sending the next message
+    # Safety delay before next message
+    delay = random.uniform(20, 35)
+    print(f"Waiting {delay:.1f} seconds before next...")
     time.sleep(delay)
+
+    # Pause after batch
+    if sent_count % BATCH_SIZE == 0 and sent_count != 0:
+        print(f"Completed {BATCH_SIZE} messages. Cooling down for {COOLDOWN_MINUTES} minutes...")
+        time.sleep(COOLDOWN_MINUTES * 60)
+
+# Close log file
+log_file.close()
+print("All done. Log saved to failed_log.txt.")

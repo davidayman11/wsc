@@ -7,6 +7,7 @@ For Windows
 🖥️ Run this in Command Prompt (cmd):
 
 pip install pandas pyautogui openpyxl
+pip install pyautogui
 
 
 ⸻

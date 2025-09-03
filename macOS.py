@@ -2,82 +2,103 @@ import pandas as pd
 import subprocess
 import time
 import urllib.parse
+import random
+from datetime import datetime
 import os
-import re
 
-# Define the path to Google Chrome
-chrome_path = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+# Configurable safety limits
+MAX_MESSAGES_PER_HOUR = 50
+BATCH_SIZE = 30               # Messages per batch
+COOLDOWN_MINUTES = 12         # Pause duration between batches
 
-# AppleScript to press Return key and close tab
+chrome_path = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+
+# AppleScript to press the Return key
 applescript = '''
 osascript -e '
-tell application "System Events"
-    delay 3
-    keystroke return
+tell application "WhatsApp"
+    activate
+    delay 1
+    tell application "System Events"
+        keystroke return
+    end tell
 end tell
-delay 5
+
+delay 3 -- Wait a few seconds to ensure the message is sent
+
 tell application "Google Chrome"
-    keystroke "w" using {command down}
+    activate
+    delay 1
+    tell application "System Events"
+        keystroke "w" using {command down}
+    end tell
 end tell
 '
 '''
 
-# Read data from Excel
-file_path = '/Users/davidayman/Desktop/whatsapp sender code /pythonProject/script.xlsx'  # Replace with your Excel file path
-sheet_name = 'Data'  # Ensure this matches your sheet name
-phone_column = 'Phone'  # Ensure this matches your Excel column
-message_column = 'Message'  # Ensure this matches your Excel column
+# Excel file setup
+file_path = '/Users/davidayman/Desktop/wsc/pythonProject/lectures.xlsx'
+sheet_name = 'Sheet16'
+phone_col = 'Phone'
+msg_col = 'Message'
 
-# Check if file exists
+# Validate file
 if not os.path.exists(file_path):
-    print(f"❌ Error: File not found at {file_path}")
-    exit()
+    print(f"[✗] File not found: {file_path}")
+    exit(1)
 
-# Load the Excel file
+# Load Excel
 df = pd.read_excel(file_path, sheet_name=sheet_name)
+print("Loaded Excel. Columns found:", df.columns)
 
-# Debug: Print column names
-print("📄 Columns in the Excel file:", df.columns)
+sent_count = 0
+log_file_path = 'failed_log.txt'
 
-# Delay between messages
-delay = 10  # Increased delay for safety
+with open(log_file_path, 'w') as log_file:
+    for index, row in df.iterrows():
+        if sent_count >= MAX_MESSAGES_PER_HOUR:
+            print(f"Reached hourly limit of {MAX_MESSAGES_PER_HOUR} messages. Stopping...")
+            break
 
-# Iterate over phone numbers and send messages
-for index, row in df.iterrows():
-    phone_number = str(row[phone_column]).strip()
-    message = str(row[message_column]).strip()
+        # --- Clean phone number ---
+        raw_phone = row[phone_col]
+        if isinstance(raw_phone, float):
+            raw_phone = str(int(raw_phone))  # Strip .0 if float
+        else:
+            raw_phone = str(raw_phone).strip()
 
-    # Ensure valid phone number format
-    phone_number = phone_number.replace(' ', '').replace('-', '')
-    if not phone_number.startswith('+20'):
-        phone_number = '+20' + phone_number  # Ensure it starts with '+20'
+        # Remove all non-digit characters
+        phone = ''.join(filter(str.isdigit, raw_phone))
 
-    # Validate number format
-    if not re.match(r'^\+20\d{9,10}$', phone_number):
-        print(f"⚠️ Skipping invalid phone number: {phone_number}")
-        continue
+        # Add Egypt country code if missing
+        if not phone.startswith('20'):
+            phone = '20' + phone
 
-    # URL encode the message
-    encoded_message = urllib.parse.quote(message)
+        # --- Prepare message ---
+        message = str(row[msg_col]).strip()
+        encoded_msg = urllib.parse.quote(message)
+        url = f"https://wa.me/{phone}?text={encoded_msg}"
 
-    # Generate WhatsApp Web URL
-    url = f"https://wa.me/{phone_number}?text={encoded_message}"
+        print(f"Opening: {url}")
+        try:
+            subprocess.Popen([chrome_path, url])
+            time.sleep(random.uniform(12, 20))  # Time to load the page
 
-    try:
-        print(f"📨 Sending message to {phone_number}...")
+            subprocess.run(applescript, shell=True)
+            print(f"[✓] Sent to {phone} at {datetime.now().strftime('%H:%M:%S')}")
+            sent_count += 1
 
-        # Open WhatsApp Web
-        subprocess.Popen([chrome_path, url])
+        except Exception as e:
+            error_message = f"[✗] Failed to send to {phone}: {e}"
+            print(error_message)
+            log_file.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - {error_message}\n")
 
-        # Allow time for page to load
-        time.sleep(15)
+        delay = random.uniform(20, 35)
+        print(f"Waiting {delay:.1f} seconds before next...")
+        time.sleep(delay)
 
-        # Execute AppleScript to press Return and close the tab
-        subprocess.run(applescript, shell=True)
+        if sent_count % BATCH_SIZE == 0 and sent_count != 0:
+            print(f"Completed {BATCH_SIZE} messages. Cooling down for {COOLDOWN_MINUTES} minutes...")
+            time.sleep(COOLDOWN_MINUTES * 60)
 
-        print(f"✅ Message sent to {phone_number}")
-    except Exception as e:
-        print(f"❌ Failed to send message to {phone_number}. Error: {str(e)}")
-
-    # Wait before sending the next message
-    time.sleep(delay)
+print("✅ All done. Log saved to failed_log.txt.")
